@@ -1,0 +1,25 @@
+[project]
+name = "fastget"
+version = "0.5.0"
+description = "TODO"
+dependencies = [
+    "aiohttp>=3.8.4,<4",
+    'importlib-metadata; python_version<"3.9"',
+]
+readme = "README.md"
+authors = [
+    {name = "Oriol Alfonso", email = "oriol@oalfonso.com"},
+]
+license = {file = "LICENSE"}
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Intended Audience :: Developers",
+    "Framework :: AsyncIO",
+    "Framework :: aiohttp",
+]
+
+[project.urls]
+documentation = "https://github.com/oalfonso-o/FastGET"
+repository = "https://github.com/oalfonso-o/FastGET"
