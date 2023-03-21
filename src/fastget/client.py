@@ -67,7 +67,9 @@ class FastGET:
         urls_in_queue = 0
         urls_chunks = self._chunker(ids_and_urls, self.pool_submit_size)
 
-        with concurrent.futures.ProcessPoolExecutor(max_workers=self.num_workers) as executor:
+        with concurrent.futures.ProcessPoolExecutor(
+            max_workers=self.num_workers
+        ) as executor:
 
             for urls_chunk in urls_chunks:
 
@@ -109,14 +111,15 @@ class FastGET:
 
 
 class Requester:
-
     @classmethod
     def run(cls, urls: List[Tuple[int, str]]) -> List[Tuple[int, str]]:
         responses = asyncio.run(cls._make_requests_async(urls))
         return responses
 
     @classmethod
-    async def _make_requests_async(cls, urls: List[Tuple[int, str]]) -> List[Tuple[int, str]]:
+    async def _make_requests_async(
+        cls, urls: List[Tuple[int, str]]
+    ) -> List[Tuple[int, str]]:
         async with aiohttp.ClientSession() as session:
             tasks = []
             for id_, url in urls:
