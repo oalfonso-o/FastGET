@@ -1,2 +1,5 @@
-def test_dummy(isrc, expected):
-    assert True
+from fastget import FastGET
+
+
+def test_dummy():
+    assert FastGET()

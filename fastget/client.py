@@ -74,7 +74,7 @@ class FastGET:
             for urls_chunk in urls_chunks:
 
                 if urls_in_queue < self.queue_max_size:
-                    chunks = self._chunker(urls_chunk, self.pool_submit_size)
+                    chunks = self._chunker(urls_chunk, self.single_submit_size)
                     for chunk in chunks:
                         urls = list(chunk)
                         future = executor.submit(Requester.run, urls)
