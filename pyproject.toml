@@ -21,5 +21,9 @@ classifiers = [
 ]
 
 [project.urls]
-documentation = "https://github.com/oalfonso-o/FastGET"
 repository = "https://github.com/oalfonso-o/FastGET"
+documentation = "https://github.com/oalfonso-o/FastGET/blob/main/README.md"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
