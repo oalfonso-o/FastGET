@@ -108,7 +108,10 @@ class FastGET:
                 self.total_processed_requests += 1
                 yield self.responses.pop()
 
-            if self.total_processed_requests % 10_000 == 0 and self.total_processed_requests:
+            if (
+                self.total_processed_requests % 10_000 == 0
+                and self.total_processed_requests
+            ):
                 logger.info(
                     f"Total processed requests: {self.total_processed_requests}..."
                 )
@@ -126,11 +129,15 @@ class FastGET:
         logger.info("All requests processed:")
         logger.info(f"  Total requests:     {self.total_processed_requests}")
         logger.info(f"  Total time (s):     {total_time:.2f}")
-        logger.info(f"  Requests/s:         {(self.total_processed_requests/total_time):.2f}")
+        logger.info(
+            f"  Requests/s:         {(self.total_processed_requests/total_time):.2f}"
+        )
         self.total_processed_requests = 0
 
     def __enter__(self):
-        self.executor = concurrent.futures.ProcessPoolExecutor(max_workers=self.num_workers)
+        self.executor = concurrent.futures.ProcessPoolExecutor(
+            max_workers=self.num_workers
+        )
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
