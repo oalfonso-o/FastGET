@@ -1,33 +1,47 @@
-import os
-import concurrent.futures
 import asyncio
+from collections.abc import Iterable
+import concurrent.futures
 import itertools
-from typing import List, Tuple, Generator
+import logging
+import os
+from typing import List, Tuple, Generator, Optional
 
 import aiohttp
+
+logging.basicConfig(
+    level=logging.INFO,
+    format=("%(asctime)-30s" "%(name)-25s" "%(levelname)-15s" "%(message)s"),
+)
 
 
 class FastGET:
 
-    NUM_CPUS: int = os.cpu_count()
+    NUM_CPUS: Optional[int] = os.cpu_count() or 1
     SINGLE_SUBMIT_SIZE: int = 5_000
     POOL_SUBMIT_SIZE: int = 50_000
     QUEUE_MAX_SIZE: int = 100_000
 
     def __init__(
         self,
-        num_workers: int = None,
-        single_submit_size: int = None,
-        pool_submit_size: int = None,
-        queue_max_size: int = None,
-    ) -> Generator[List[Tuple[int, str]], None, None]:
-        self.responses = []
+        num_workers: int = 0,
+        single_submit_size: int = 0,
+        pool_submit_size: int = 0,
+        queue_max_size: int = 0,
+        debug: bool = False,
+    ):
+        self.responses: List[Tuple[int, str]] = []
+        self.total_processed_requests: int = 0
         self.num_workers = num_workers or self.NUM_CPUS
         self.single_submit_size = single_submit_size or self.SINGLE_SUBMIT_SIZE
         self.pool_submit_size = pool_submit_size or self.POOL_SUBMIT_SIZE
         self.queue_max_size = queue_max_size or self.QUEUE_MAX_SIZE
+        logger = logging.getLogger("fastget")
+        if debug:
+            logger.setLevel("debug")
 
-    def get(self, ids_and_urls: List[Tuple[int, str]]):
+    def get(
+        self, ids_and_urls: Iterable[Tuple[int, str]]
+    ) -> Generator[Tuple[int, str], None, None]:
         """Uses multiprocessing and aiohttp to retrieve GET requests in parallel and concurrently
 
         Expects a list of tuples, each tuple containing the ID of the request and the URL.
@@ -64,6 +78,18 @@ class FastGET:
         ...
         (0, {'message': 'Hello Single View API user!'})
         """
+
+        if self.responses or self.total_processed_requests:
+            raise Exception(
+                "This client is in use, the same client can't be used concurrently"
+            )
+
+        logger.info("Start processing requests with FastGET parameters:")
+        logger.info(f"  num_workers:        {self.num_workers}")
+        logger.info(f"  single_submit_size: {self.single_submit_size}")
+        logger.info(f"  pool_submit_size:   {self.pool_submit_size}")
+        logger.info(f"  queue_max_size:     {self.queue_max_size}")
+
         urls_in_queue = 0
         urls_chunks = self._chunker(ids_and_urls, self.pool_submit_size)
 
@@ -83,21 +109,33 @@ class FastGET:
 
                 for _ in range(len(self.responses)):
                     urls_in_queue -= 1
+                    self.total_processed_requests += 1
                     yield self.responses.pop()
+
+                if self.total_processed_requests % 10_000 == 0:
+                    logger.debug(
+                        f"Total processed requests: {self.total_processed_requests}"
+                    )
 
             while urls_in_queue:
                 if self.responses:
                     urls_in_queue -= 1
+                    self.total_processed_requests += 1
                     yield self.responses.pop()
 
             if self.responses:
                 raise Exception("We should have returned everything!")
 
+        logger.info(
+            f"All requests processed. Total requests: {self.total_processed_requests}"
+        )
+        self.total_processed_requests = 0
+
     def __enter__(self):
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        pass
+        logger.setLevel(level)
 
     @staticmethod
     def _chunker(iterable, size: int):
@@ -134,5 +172,5 @@ class Requester:
             try:
                 response_json = await response.json()
             except Exception as e:
-                print(e)
+                logger.exception(e)
             return (id_, response_json)
