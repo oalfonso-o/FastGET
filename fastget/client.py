@@ -36,6 +36,7 @@ class FastGET:
         self.queue_max_size = queue_max_size or self.QUEUE_MAX_SIZE
         self.input_chunk_size = input_chunk_size or self.INPUT_CHUNK_SIZE
         self.pool_submit_size = pool_submit_size or self.POOL_SUBMIT_SIZE
+        self.executor = None
 
     def get(
         self, ids_and_urls: Iterable[Tuple[int, str]]
@@ -92,38 +93,34 @@ class FastGET:
         urls_in_queue = 0
         urls_chunks = self._chunker(ids_and_urls, self.input_chunk_size)
 
-        with concurrent.futures.ProcessPoolExecutor(
-            max_workers=self.num_workers
-        ) as executor:
+        for urls_chunk in urls_chunks:
 
-            for urls_chunk in urls_chunks:
+            if urls_in_queue < self.queue_max_size:
+                chunks = self._chunker(urls_chunk, self.pool_submit_size)
+                for chunk in chunks:
+                    urls = list(chunk)
+                    future = self.executor.submit(Requester.run, urls)
+                    future.add_done_callback(self._future_done_callback)
+                    urls_in_queue += len(urls)
 
-                if urls_in_queue < self.queue_max_size:
-                    chunks = self._chunker(urls_chunk, self.pool_submit_size)
-                    for chunk in chunks:
-                        urls = list(chunk)
-                        future = executor.submit(Requester.run, urls)
-                        future.add_done_callback(self._future_done_callback)
-                        urls_in_queue += len(urls)
+            for _ in range(len(self.responses)):
+                urls_in_queue -= 1
+                self.total_processed_requests += 1
+                yield self.responses.pop()
 
-                for _ in range(len(self.responses)):
-                    urls_in_queue -= 1
-                    self.total_processed_requests += 1
-                    yield self.responses.pop()
+            if self.total_processed_requests % 10_000 == 0 and self.total_processed_requests:
+                logger.info(
+                    f"Total processed requests: {self.total_processed_requests}..."
+                )
 
-                if self.total_processed_requests % 10_000 == 0 and self.total_processed_requests:
-                    logger.info(
-                        f"Total processed requests: {self.total_processed_requests}..."
-                    )
-
-            while urls_in_queue:
-                if self.responses:
-                    urls_in_queue -= 1
-                    self.total_processed_requests += 1
-                    yield self.responses.pop()
-
+        while urls_in_queue:
             if self.responses:
-                raise Exception("We should have returned everything!")
+                urls_in_queue -= 1
+                self.total_processed_requests += 1
+                yield self.responses.pop()
+
+        if self.responses:
+            raise Exception("We should have returned everything!")
 
         total_time = time.time() - init_time
         logger.info("All requests processed:")
@@ -133,10 +130,12 @@ class FastGET:
         self.total_processed_requests = 0
 
     def __enter__(self):
+        self.executor = concurrent.futures.ProcessPoolExecutor(max_workers=self.num_workers)
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        pass
+        self.executor.shutdown(wait=True)
+        return False
 
     @staticmethod
     def _chunker(iterable, size: int):

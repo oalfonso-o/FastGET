@@ -1,4 +1,4 @@
-# FastGET: make parallel and concurrent GET requests the easy way
+# FastGET: easy parallel and concurrent GET requests
 
 The idea of this package is to wrap `multiprocessing` and `async` concurrency and allow the user to perform thousands of requests in parallel and concurrently without having to worry about pools of processes and async event loops.
 
@@ -66,12 +66,12 @@ You can provide a generator to don't blow up the memory:
 fastget             INFO      Start processing requests with FastGET parameters:
 fastget             INFO        num_workers:        8
 fastget             INFO        queue_max_size:     100000
-fastget             INFO        pool_submit_size:   10000
-fastget             INFO        single_submit_size: 1000
+fastget             INFO        input_chunk_size:   10000
+fastget             INFO        pool_submit_size:   1000
 fastget             INFO      All requests processed:
 fastget             INFO        Total requests:     100000
-fastget             INFO        Total time (s):     43.06
-fastget             INFO        Requests/s:         2322.09
+fastget             INFO        Total time (s):     36.35
+fastget             INFO        Requests/s:         2750.93
 ```
 
 ## Parameters
