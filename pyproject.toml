@@ -1,7 +1,7 @@
 [project]
 name = "fastget"
-version = "0.5.0"
-description = "TODO"
+version = "0.5.1"
+description = "Simple lightweight HTTP client to perform GET requests in parallel with multiprocessing and in each process use aiohttp to do them concurrently and maximize the throughtput."
 dependencies = [
     "aiohttp>=3.8.4,<4",
     'importlib-metadata; python_version<"3.9"',

@@ -42,8 +42,8 @@ fastget             INFO        num_workers:        8
 fastget             INFO        single_submit_size: 5000
 fastget             INFO        pool_submit_size:   50000
 fastget             INFO        queue_max_size:     100000
-(2, {'message': 'Hello Single View API user!'})
-(1, {'message': 'Hello Single View API user!'})
+(2, {'message': 'Hello World!'})
+(1, {'message': 'Hello World!'})
 fastget             INFO      All requests processed:
 fastget             INFO        Total requests: 2
 fastget             INFO        Total time:     0.05848503112792969
