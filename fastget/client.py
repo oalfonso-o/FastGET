@@ -4,40 +4,38 @@ import concurrent.futures
 import itertools
 import logging
 import os
+import time
 from typing import List, Tuple, Generator, Optional
 
 import aiohttp
 
 logging.basicConfig(
     level=logging.INFO,
-    format=("%(asctime)-30s" "%(name)-25s" "%(levelname)-15s" "%(message)s"),
+    format=("%(asctime)-25s" "%(name)-20s" "%(levelname)-10s" "%(message)s"),
 )
+logger = logging.getLogger("fastget")
 
 
 class FastGET:
 
     NUM_CPUS: Optional[int] = os.cpu_count() or 1
-    SINGLE_SUBMIT_SIZE: int = 5_000
-    POOL_SUBMIT_SIZE: int = 50_000
     QUEUE_MAX_SIZE: int = 100_000
+    INPUT_CHUNK_SIZE: int = 10_000
+    POOL_SUBMIT_SIZE: int = 1_000
 
     def __init__(
         self,
         num_workers: int = 0,
-        single_submit_size: int = 0,
         pool_submit_size: int = 0,
+        input_chunk_size: int = 0,
         queue_max_size: int = 0,
-        debug: bool = False,
     ):
         self.responses: List[Tuple[int, str]] = []
         self.total_processed_requests: int = 0
         self.num_workers = num_workers or self.NUM_CPUS
-        self.single_submit_size = single_submit_size or self.SINGLE_SUBMIT_SIZE
-        self.pool_submit_size = pool_submit_size or self.POOL_SUBMIT_SIZE
         self.queue_max_size = queue_max_size or self.QUEUE_MAX_SIZE
-        logger = logging.getLogger("fastget")
-        if debug:
-            logger.setLevel("debug")
+        self.input_chunk_size = input_chunk_size or self.INPUT_CHUNK_SIZE
+        self.pool_submit_size = pool_submit_size or self.POOL_SUBMIT_SIZE
 
     def get(
         self, ids_and_urls: Iterable[Tuple[int, str]]
@@ -86,12 +84,13 @@ class FastGET:
 
         logger.info("Start processing requests with FastGET parameters:")
         logger.info(f"  num_workers:        {self.num_workers}")
-        logger.info(f"  single_submit_size: {self.single_submit_size}")
-        logger.info(f"  pool_submit_size:   {self.pool_submit_size}")
         logger.info(f"  queue_max_size:     {self.queue_max_size}")
+        logger.info(f"  input_chunk_size:   {self.input_chunk_size}")
+        logger.info(f"  pool_submit_size:   {self.pool_submit_size}")
 
+        init_time = time.time()
         urls_in_queue = 0
-        urls_chunks = self._chunker(ids_and_urls, self.pool_submit_size)
+        urls_chunks = self._chunker(ids_and_urls, self.input_chunk_size)
 
         with concurrent.futures.ProcessPoolExecutor(
             max_workers=self.num_workers
@@ -100,7 +99,7 @@ class FastGET:
             for urls_chunk in urls_chunks:
 
                 if urls_in_queue < self.queue_max_size:
-                    chunks = self._chunker(urls_chunk, self.single_submit_size)
+                    chunks = self._chunker(urls_chunk, self.pool_submit_size)
                     for chunk in chunks:
                         urls = list(chunk)
                         future = executor.submit(Requester.run, urls)
@@ -112,9 +111,9 @@ class FastGET:
                     self.total_processed_requests += 1
                     yield self.responses.pop()
 
-                if self.total_processed_requests % 10_000 == 0:
-                    logger.debug(
-                        f"Total processed requests: {self.total_processed_requests}"
+                if self.total_processed_requests % 10_000 == 0 and self.total_processed_requests:
+                    logger.info(
+                        f"Total processed requests: {self.total_processed_requests}..."
                     )
 
             while urls_in_queue:
@@ -126,16 +125,18 @@ class FastGET:
             if self.responses:
                 raise Exception("We should have returned everything!")
 
-        logger.info(
-            f"All requests processed. Total requests: {self.total_processed_requests}"
-        )
+        total_time = time.time() - init_time
+        logger.info("All requests processed:")
+        logger.info(f"  Total requests:     {self.total_processed_requests}")
+        logger.info(f"  Total time (s):     {total_time:.2f}")
+        logger.info(f"  Requests/s:         {(self.total_processed_requests/total_time):.2f}")
         self.total_processed_requests = 0
 
     def __enter__(self):
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        logger.setLevel(level)
+        pass
 
     @staticmethod
     def _chunker(iterable, size: int):
