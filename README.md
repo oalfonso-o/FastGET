@@ -46,8 +46,8 @@ fastget             INFO        queue_max_size:     100000
 (1, {'message': 'Hello World!'})
 fastget             INFO      All requests processed:
 fastget             INFO        Total requests: 2
-fastget             INFO        Total time:     0.05848503112792969
-fastget             INFO        Requests/s:     34.16530770170651
+fastget             INFO        Total time:     0.05
+fastget             INFO        Requests/s:     34.16
 ```
 
 You can provide a generator to don't blow up the memory:
