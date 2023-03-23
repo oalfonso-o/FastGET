@@ -4,7 +4,7 @@ import itertools
 import logging
 import os
 import time
-from typing import List, Generator, Optional, Iterable, Callable, Any
+from typing import List, Generator, Optional, Iterable, Callable
 
 # from collections.abc import Iterable  # only for >=3.9
 
