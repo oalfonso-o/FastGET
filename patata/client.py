@@ -30,15 +30,15 @@ VALID_METHODS = [
 class Patata:
     NUM_CPUS: Optional[int] = os.cpu_count() or 1
     QUEUE_MAX_SIZE: int = 100_000
-    INPUT_CHUNK_SIZE: int = 10_000
-    POOL_SUBMIT_SIZE: int = 1_000
+    INPUT_CHUNK_SIZE: int = 20_000
+    POOL_SUBMIT_SIZE: int = 7_500
 
     def __init__(
         self,
         workers: int = 0,
-        pool_submit_size: int = 0,
-        input_chunk_size: int = 0,
         queue_max_size: int = 0,
+        input_chunk_size: int = 0,
+        pool_submit_size: int = 0,
     ):
         self.responses: List[Response] = []
         self.total_processed_requests: int = 0
