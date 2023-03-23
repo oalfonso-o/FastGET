@@ -1,11 +1,12 @@
 import asyncio
-from collections.abc import Iterable
 import concurrent.futures
 import itertools
 import logging
 import os
 import time
-from typing import List, Tuple, Generator, Optional
+from typing import List, Tuple, Generator, Optional, Iterable
+
+# from collections.abc import Iterable  # only for >=3.9
 
 import aiohttp
 
@@ -36,7 +37,7 @@ class FastGET:
         self.queue_max_size = queue_max_size or self.QUEUE_MAX_SIZE
         self.input_chunk_size = input_chunk_size or self.INPUT_CHUNK_SIZE
         self.pool_submit_size = pool_submit_size or self.POOL_SUBMIT_SIZE
-        self.executor = None
+        self.executor: Optional[concurrent.futures.ProcessPoolExecutor] = None
 
     def get(
         self, ids_and_urls: Iterable[Tuple[int, str]]
@@ -82,6 +83,8 @@ class FastGET:
             raise Exception(
                 "This client is in use, the same client can't be used concurrently"
             )
+        if not self.executor:
+            raise Exception("Please start the client with context manager")
 
         logger.info("Start processing requests with FastGET parameters:")
         logger.info(f"  num_workers:        {self.num_workers}")
