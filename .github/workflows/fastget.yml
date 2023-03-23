@@ -30,7 +30,7 @@ jobs:
     - name: run tox test 3.8
       run: |
         tox -e py38
-    - name: run tox test 3.8
+    - name: run tox test 3.9
       run: |
         tox -e py39
     - name: run tox test 3.10
