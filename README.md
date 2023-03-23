@@ -60,6 +60,7 @@ Use always context manager, for example for GET:
 patata              INFO      Start processing requests with Patata parameters:
 patata              INFO        method:             GET
 patata              INFO        num_workers:        8
+patata              INFO        multiprocessing:    True
 patata              INFO        queue_max_size:     100000
 patata              INFO        input_chunk_size:   10000
 patata              INFO        pool_submit_size:   1000
@@ -94,6 +95,7 @@ You can also provide callbacks to process the responses in each process before b
 patata              INFO      Start processing requests with Patata parameters:
 patata              INFO        method:             GET
 patata              INFO        num_workers:        8
+patata              INFO        multiprocessing:    True
 patata              INFO        queue_max_size:     100000
 patata              INFO        input_chunk_size:   10000
 patata              INFO        pool_submit_size:   1000
