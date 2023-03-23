@@ -25,8 +25,8 @@ classifiers = [
 ]
 
 [project.urls]
-repository = "https://github.com/oalfonso-o/Patata"
-documentation = "https://github.com/oalfonso-o/Patata/blob/main/README.md"
+repository = "https://github.com/oalfonso-o/patata"
+documentation = "https://github.com/oalfonso-o/patata/blob/main/README.md"
 
 [build-system]
 requires = ["hatchling"]

@@ -97,7 +97,7 @@ patata             INFO        Requests/s:         2750.93
 
 You can configure some parameters like the amount of workers or how the client chunks the input:
 
-[patata.Patata](https://github.com/oalfonso-o/Patata/blob/main/patata/client.py#L24) parameters:
+[patata.Patata](https://github.com/oalfonso-o/patata/blob/main/patata/client.py#L24) parameters:
 
 - `num_workers`:
     - type: int
@@ -117,7 +117,7 @@ You can configure some parameters like the amount of workers or how the client c
     - description: Each chunk of `input_chunk_size` will also be chunked to minor chunks of this size before being submited to the pool. The workers will be consuming chunks of this size and each of these chunks will be requested in an event loop.
 
 
-[patata.Patata.get](https://github.com/oalfonso-o/Patata/blob/main/patata/client.py#L42)
+[patata.Patata.get](https://github.com/oalfonso-o/patata/blob/main/patata/client.py#L42)
 
 Parameters:
 
