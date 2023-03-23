@@ -4,7 +4,7 @@ import itertools
 import logging
 import os
 import time
-from typing import List, Generator, Optional, Iterable, Callable
+from typing import List, Generator, Optional, Iterable, Callable, Any
 
 # from collections.abc import Iterable  # only for >=3.9
 
@@ -35,20 +35,22 @@ class Patata:
 
     def __init__(
         self,
-        num_workers: int = 0,
+        workers: int = 0,
         pool_submit_size: int = 0,
         input_chunk_size: int = 0,
         queue_max_size: int = 0,
     ):
         self.responses: List[Response] = []
         self.total_processed_requests: int = 0
-        self.num_workers = num_workers or self.NUM_CPUS
+        self.workers = workers or self.NUM_CPUS
         self.queue_max_size = queue_max_size or self.QUEUE_MAX_SIZE
         self.input_chunk_size = input_chunk_size or self.INPUT_CHUNK_SIZE
         self.pool_submit_size = pool_submit_size or self.POOL_SUBMIT_SIZE
-        self.executor = concurrent.futures.ProcessPoolExecutor(
-            max_workers=self.num_workers
-        )
+        self.executor: Optional[concurrent.futures.ProcessPoolExecutor] = None
+        if self.workers != 1:
+            self.executor = concurrent.futures.ProcessPoolExecutor(
+                max_workers=self.workers
+            )
 
     def http(
         self,
@@ -108,7 +110,8 @@ class Patata:
 
         logger.info("Start processing requests with Patata parameters:")
         logger.info(f"  method:             {method.upper()}")
-        logger.info(f"  num_workers:        {self.num_workers}")
+        logger.info(f"  workers:            {self.workers}")
+        logger.info(f"  multiprocessing:    {self.workers != 1}")
         logger.info(f"  queue_max_size:     {self.queue_max_size}")
         logger.info(f"  input_chunk_size:   {self.input_chunk_size}")
         logger.info(f"  pool_submit_size:   {self.pool_submit_size}")
@@ -122,10 +125,16 @@ class Patata:
                 chunks = self._chunker(requests_chunk, self.pool_submit_size)
                 for chunk in chunks:
                     requests = self._validate_input(chunk)
-                    future = self.executor.submit(
-                        Requester.run, method, requests, callbacks
-                    )
-                    future.add_done_callback(self._future_done_callback)
+                    if self.executor:
+                        future = self.executor.submit(
+                            Requester.run, method, requests, callbacks
+                        )
+                        future.add_done_callback(self._future_done_callback)
+                    else:  # run in the main thread
+                        self.responses.extend(
+                            Requester.run(method, requests, callbacks)
+                        )
+
                     requests_in_queue += len(requests)
 
             for _ in range(len(self.responses)):
@@ -134,7 +143,7 @@ class Patata:
                 yield self.responses.pop()
 
             if (
-                self.total_processed_requests % 10_000 == 0
+                self.total_processed_requests % Patata.INPUT_CHUNK_SIZE == 0
                 and self.total_processed_requests
             ):
                 logger.info(
@@ -167,7 +176,8 @@ class Patata:
         return False
 
     def close(self):
-        self.executor.shutdown(wait=True)
+        if self.executor:
+            self.executor.shutdown(wait=True)
 
     @staticmethod
     def _chunker(iterable, size: int):

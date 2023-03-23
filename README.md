@@ -155,8 +155,7 @@ Response: Generator[Tuple[int, str], None, None]. For each input tuple an output
 
 
 TODO:
-- flag to disable multiprocessing
-- define proper exceptions
 - tests
+- define proper exceptions
 - add flag to specify how many requests can fail, this will need to specify also which codes are "ok" or which are "not ok" do decide when to increment this count and decide to stop
 - include the missing methods like PUT, DELETE, etc
