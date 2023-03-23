@@ -137,8 +137,8 @@ Response: Generator[Tuple[int, str], None, None]. For each input tuple an output
 
 
 TODO:
-- use pydantic models
-- allow specifying custom callbacks after resolving the request, to post-process each response taking benefit of multiprocessing
 - flag to disable multiprocessing
+- define proper exceptions
+- tests
 - add flag to specify how many requests can fail, this will need to specify also which codes are "ok" or which are "not ok" do decide when to increment this count and decide to stop
 - include the missing methods like PUT, DELETE, etc

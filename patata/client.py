@@ -4,7 +4,7 @@ import itertools
 import logging
 import os
 import time
-from typing import List, Generator, Optional, Iterable
+from typing import List, Generator, Optional, Iterable, Callable
 
 # from collections.abc import Iterable  # only for >=3.9
 
@@ -51,17 +51,30 @@ class Patata:
         )
 
     def http(
-        self, method: str, requests: Iterable[Request]
+        self,
+        method: str,
+        requests: Iterable[Request],
+        callbacks: Iterable[Callable] = [],
     ) -> Generator[Response, None, None]:
         """Uses multiprocessing and aiohttp to retrieve GET or POST requests in parallel and
         concurrently
 
-        Expects:
-            - a method type, which has to be one of patata.client.VALID_METHODS.
-            - an Iterable of patata.models.Request objects. A Request object contains the `id` of
-            the request, the `url` and the `data`.
+        Parameters
+        ------------
+            method: str
+                GET or POST
+            requests: Iterable[patata.Request]
+                Iterable of Request objects containing the id, url and data
+            callbacks: Optional[Iterable[Callable]] = None
+                Callables that will be executed for each response, they must expect receiving a
+                Response and return another Response
+        Return
+        -----------
+            responses : Generator[patata.Response, None, None]
+                As soon as the response is ready it will be yielded. The response contains the id,
+                the status_code and the json returned.
 
-        Example of requests:
+        Example of input requests:
         [
             Request(id_=0, url="https://www.google.com", data={}),
             Request(id_=1, url="http://localhost:12345", data={"key": "value"}),
@@ -69,14 +82,10 @@ class Patata:
 
         It only supports GET and POST methods.
 
-        URL parameters should come already url encoded.
-
-        Yields patata.models.Response objects which have the Request.id_, the response status_code
-        and the json returned.
+        URL input parameters should come already url encoded.
 
         Example:
-        >>> from patata import Patata
-        >>> from patata.models import Request
+        >>> from patata import Patata, Request
         >>> with Patata() as client:
         ...     responses = client.http("get", [Request(id_=0, url="http://localhost:12345/", data={})])
         ...     next(responses)
@@ -113,7 +122,9 @@ class Patata:
                 chunks = self._chunker(requests_chunk, self.pool_submit_size)
                 for chunk in chunks:
                     requests = self._validate_input(chunk)
-                    future = self.executor.submit(Requester.run, method, requests)
+                    future = self.executor.submit(
+                        Requester.run, method, requests, callbacks
+                    )
                     future.add_done_callback(self._future_done_callback)
                     requests_in_queue += len(requests)
 
@@ -181,12 +192,20 @@ class Patata:
 
 class Requester:
     @classmethod
-    def run(cls, method: str, requests: List[Request]) -> List[Response]:
+    def run(
+        cls, method: str, requests: List[Request], callbacks: Iterable[Callable]
+    ) -> List[Response]:
         if method.upper() not in VALID_METHODS:
             raise Exception(
                 f"The method {method} is not valid. Valid methods: {VALID_METHODS}"
             )
+
         responses = asyncio.run(cls._make_requests_async(method.lower(), requests))
+
+        for response in responses:
+            for callback in callbacks:
+                response = callback(response)
+
         return responses
 
     @classmethod
