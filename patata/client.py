@@ -17,7 +17,7 @@ logging.basicConfig(
 logger = logging.getLogger("patata")
 
 InputItem = Tuple[Any, str, dict]
-OutputItem = Tuple[Any, str]
+OutputItem = Tuple[Any, int, dict]
 
 
 POST = "POST"
@@ -205,7 +205,8 @@ class Requester:
 
         async with session_method(url, json=data, headers=headers) as response:
             try:
+                status_code = response.status
                 response_json = await response.json()
             except Exception as e:
                 logger.exception(e)
-            return (id_, response_json)
+            return (id_, status_code, response_json)
