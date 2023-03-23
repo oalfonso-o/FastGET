@@ -4,7 +4,7 @@ import itertools
 import logging
 import os
 import time
-from typing import List, Tuple, Generator, Optional, Iterable
+from typing import List, Tuple, Generator, Optional, Iterable, Any
 
 # from collections.abc import Iterable  # only for >=3.9
 
@@ -15,6 +15,17 @@ logging.basicConfig(
     format=("%(asctime)-25s" "%(name)-20s" "%(levelname)-10s" "%(message)s"),
 )
 logger = logging.getLogger("patata")
+
+InputItem = Tuple[Any, str, dict]
+OutputItem = Tuple[Any, str]
+
+
+POST = "POST"
+GET = "GET"
+VALID_METHODS = [
+    GET,
+    POST,
+]
 
 
 class Patata:
@@ -31,7 +42,7 @@ class Patata:
         input_chunk_size: int = 0,
         queue_max_size: int = 0,
     ):
-        self.responses: List[Tuple[int, str]] = []
+        self.responses: List[OutputItem] = []
         self.total_processed_requests: int = 0
         self.num_workers = num_workers or self.NUM_CPUS
         self.queue_max_size = queue_max_size or self.QUEUE_MAX_SIZE
@@ -41,10 +52,11 @@ class Patata:
             max_workers=self.num_workers
         )
 
-    def get(
-        self, ids_and_urls: Iterable[Tuple[int, str, dict]]
-    ) -> Generator[Tuple[int, str], None, None]:
-        """Uses multiprocessing and aiohttp to retrieve GET requests in parallel and concurrently
+    def http(
+        self, method: str, requests: Iterable[InputItem]
+    ) -> Generator[OutputItem, None, None]:
+        """Uses multiprocessing and aiohttp to retrieve GET or POST requests in parallel and
+        concurrently
 
         Expects a list of tuples, each tuple containing the ID of the request, the URL and the
         data.
@@ -87,6 +99,7 @@ class Patata:
             )
 
         logger.info("Start processing requests with Patata parameters:")
+        logger.info(f"  method:             {method.upper()}")
         logger.info(f"  num_workers:        {self.num_workers}")
         logger.info(f"  queue_max_size:     {self.queue_max_size}")
         logger.info(f"  input_chunk_size:   {self.input_chunk_size}")
@@ -94,7 +107,7 @@ class Patata:
 
         init_time = time.time()
         urls_in_queue = 0
-        urls_chunks = self._chunker(ids_and_urls, self.input_chunk_size)
+        urls_chunks = self._chunker(requests, self.input_chunk_size)
 
         for urls_chunk in urls_chunks:
 
@@ -102,7 +115,7 @@ class Patata:
                 chunks = self._chunker(urls_chunk, self.pool_submit_size)
                 for chunk in chunks:
                     urls = list(chunk)
-                    future = self.executor.submit(Requester.run, urls)
+                    future = self.executor.submit(Requester.run, method, urls)
                     future.add_done_callback(self._future_done_callback)
                     urls_in_queue += len(urls)
 
@@ -159,26 +172,40 @@ class Patata:
 
 
 class Requester:
+
     @classmethod
-    def run(cls, urls: List[Tuple[int, str]]) -> List[Tuple[int, str]]:
-        responses = asyncio.run(cls._make_requests_async(urls))
+    def run(cls, method: str, urls: List[InputItem]) -> List[OutputItem]:
+        if method.upper() not in VALID_METHODS:
+            raise Exception(
+                f"The method {method} is not valid. Valid methods: {VALID_METHODS}"
+            )
+        responses = asyncio.run(cls._make_requests_async(method.lower(), urls))
         return responses
 
     @classmethod
-    async def _make_requests_async(
-        cls, urls: List[Tuple[int, str]]
-    ) -> List[Tuple[int, str]]:
+    async def _make_requests_async(cls, method: str, urls: List[InputItem]) -> List[OutputItem]:
         async with aiohttp.ClientSession() as session:
             tasks = []
-            for id_, url in urls:
-                task = asyncio.ensure_future(cls._make_request_async(session, id_, url))
+            for id_, url, data in urls:
+                task = asyncio.ensure_future(
+                    cls._make_request_async(session, method, id_, url, data)
+                )
                 tasks.append(task)
             results = await asyncio.gather(*tasks)
         return results
 
     @staticmethod
-    async def _make_request_async(session, id_: int, url: str) -> Tuple[int, str]:
-        async with session.get(url) as response:
+    async def _make_request_async(
+        session: aiohttp.ClientSession, method: str, id_: Any, url: str, data: dict
+    ) -> OutputItem:
+
+        session_method = getattr(session, method)
+        headers = {"accept": "application/json"}
+
+        if method.upper() == POST and data:
+            headers["Content-Type"] = "application/json"
+
+        async with session_method(url, json=data, headers=headers) as response:
             try:
                 response_json = await response.json()
             except Exception as e:
