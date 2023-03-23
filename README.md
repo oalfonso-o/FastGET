@@ -1,21 +1,21 @@
-# FastHTTP
+# Patata
 
 <p align="center">
     <em>Easy parallel and concurrent GET requests</em>
 </p>
 
 <p align="center">
-<a href="https://github.com/oalfonso-o/fasthttp/actions?query=workflow%3ACI+event%3Apush+branch%3Amain" target="_blank">
-    <img src="https://github.com/oalfonso-o/fasthttp/workflows/CI/badge.svg?event=push&branch=main" alt="Test">
+<a href="https://github.com/oalfonso-o/patata/actions?query=workflow%3ACI+event%3Apush+branch%3Amain" target="_blank">
+    <img src="https://github.com/oalfonso-o/patata/workflows/CI/badge.svg?event=push&branch=main" alt="Test">
 </a>
 <!-- <a href="https://coverage-badge.samuelcolvin.workers.dev/redirect/tiangolo/fastapi" target="_blank">
     <img src="https://coverage-badge.samuelcolvin.workers.dev/tiangolo/fastapi.svg" alt="Coverage">
 </a> -->
-<a href="https://pypi.org/project/fasthttp" target="_blank">
-    <img src="https://img.shields.io/pypi/v/fasthttp?color=%2334D058&label=pypi%20package" alt="Package version">
+<a href="https://pypi.org/project/patata" target="_blank">
+    <img src="https://img.shields.io/pypi/v/patata?color=%2334D058&label=pypi%20package" alt="Package version">
 </a>
-<a href="https://pypi.org/project/fasthttp" target="_blank">
-    <img src="https://img.shields.io/pypi/pyversions/fasthttp.svg?color=%2334D058" alt="Supported Python versions">
+<a href="https://pypi.org/project/patata" target="_blank">
+    <img src="https://img.shields.io/pypi/pyversions/patata.svg?color=%2334D058" alt="Supported Python versions">
 </a>
 </p>
 
@@ -42,7 +42,7 @@ This is why we can see that our generator is receiving the responses un bulks.
 
 From PyPi:
 ```
-pip install fasthttp
+pip install patata
 ```
 
 ## Usage:
@@ -50,54 +50,54 @@ pip install fasthttp
 Use always context manager:
 
 ``` python
->>> from fasthttp import FastHTTP
->>> with FastHTTP() as client:
+>>> from patata import Patata
+>>> with Patata() as client:
 ...     responses = client.get([(1, "http://localhost:12345"), (2, "http://localhost:12345")])
 ...     for response in responses:
 ...         print(response)
 ... 
-fasthttp             INFO      Start processing requests with FastHTTP parameters:
-fasthttp             INFO        num_workers:        8
-fasthttp             INFO        single_submit_size: 5000
-fasthttp             INFO        pool_submit_size:   50000
-fasthttp             INFO        queue_max_size:     100000
+patata             INFO      Start processing requests with Patata parameters:
+patata             INFO        num_workers:        8
+patata             INFO        single_submit_size: 5000
+patata             INFO        pool_submit_size:   50000
+patata             INFO        queue_max_size:     100000
 (2, {'message': 'Hello World!'})
 (1, {'message': 'Hello World!'})
-fasthttp             INFO      All requests processed:
-fasthttp             INFO        Total requests: 2
-fasthttp             INFO        Total time:     0.05
-fasthttp             INFO        Requests/s:     34.16
+patata             INFO      All requests processed:
+patata             INFO        Total requests: 2
+patata             INFO        Total time:     0.05
+patata             INFO        Requests/s:     34.16
 ```
 
 You can provide a generator to don't blow up the memory:
 ``` python
->>> from fasthttp import FastHTTP
+>>> from patata import Patata
 >>> from collections import deque
 >>> 
 >>> def mygen():
 ...     for i in range(100_000):
 ...          yield (i, "http://localhost:12345")
 ... 
->>> with FastHTTP() as client:
+>>> with Patata() as client:
 ...     responses = client.get(mygen())
 ...     _ = deque(responses)
 ... 
-fasthttp             INFO      Start processing requests with FastHTTP parameters:
-fasthttp             INFO        num_workers:        8
-fasthttp             INFO        queue_max_size:     100000
-fasthttp             INFO        input_chunk_size:   10000
-fasthttp             INFO        pool_submit_size:   1000
-fasthttp             INFO      All requests processed:
-fasthttp             INFO        Total requests:     100000
-fasthttp             INFO        Total time (s):     36.35
-fasthttp             INFO        Requests/s:         2750.93
+patata             INFO      Start processing requests with Patata parameters:
+patata             INFO        num_workers:        8
+patata             INFO        queue_max_size:     100000
+patata             INFO        input_chunk_size:   10000
+patata             INFO        pool_submit_size:   1000
+patata             INFO      All requests processed:
+patata             INFO        Total requests:     100000
+patata             INFO        Total time (s):     36.35
+patata             INFO        Requests/s:         2750.93
 ```
 
 ## Parameters
 
 You can configure some parameters like the amount of workers or how the client chunks the input:
 
-[fasthttp.FastHTTP](https://github.com/oalfonso-o/FastHTTP/blob/main/fasthttp/client.py#L24) parameters:
+[patata.Patata](https://github.com/oalfonso-o/Patata/blob/main/patata/client.py#L24) parameters:
 
 - `num_workers`:
     - type: int
@@ -117,7 +117,7 @@ You can configure some parameters like the amount of workers or how the client c
     - description: Each chunk of `input_chunk_size` will also be chunked to minor chunks of this size before being submited to the pool. The workers will be consuming chunks of this size and each of these chunks will be requested in an event loop.
 
 
-[fasthttp.FastHTTP.get](https://github.com/oalfonso-o/FastHTTP/blob/main/fasthttp/client.py#L42)
+[patata.Patata.get](https://github.com/oalfonso-o/Patata/blob/main/patata/client.py#L42)
 
 Parameters:
 

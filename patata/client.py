@@ -14,10 +14,10 @@ logging.basicConfig(
     level=logging.INFO,
     format=("%(asctime)-25s" "%(name)-20s" "%(levelname)-10s" "%(message)s"),
 )
-logger = logging.getLogger("fasthttp")
+logger = logging.getLogger("patata")
 
 
-class FastHTTP:
+class Patata:
 
     NUM_CPUS: Optional[int] = os.cpu_count() or 1
     QUEUE_MAX_SIZE: int = 100_000
@@ -57,7 +57,7 @@ class FastHTTP:
         Yields tuples of two items: ID + the JSON response, as soon as a response is received.
 
         Example:
-        >>> client = FastHTTP()
+        >>> client = Patata()
         >>> responses = client.get([(0, "http://0.0.0.0:12345", {})])
         >>> next(responses)
         (0, {'message': 'Hello Single View API user!'})
@@ -74,7 +74,7 @@ class FastHTTP:
         The best is to use it with context manager:
 
         Example:
-        >>> with FastHTTP() as client:
+        >>> with Patata() as client:
         ...     responses = client.get([(0, "http://0.0.0.0:12345")])
         ...     next(responses)
         ...
@@ -86,7 +86,7 @@ class FastHTTP:
                 "This client is in use, the same client can't be used concurrently"
             )
 
-        logger.info("Start processing requests with FastHTTP parameters:")
+        logger.info("Start processing requests with Patata parameters:")
         logger.info(f"  num_workers:        {self.num_workers}")
         logger.info(f"  queue_max_size:     {self.queue_max_size}")
         logger.info(f"  input_chunk_size:   {self.input_chunk_size}")
