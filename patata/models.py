@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Optional
 
 from pydantic import BaseModel
 
@@ -6,7 +6,7 @@ from pydantic import BaseModel
 class Request(BaseModel):
     id_: Any
     url: str
-    data: dict
+    data: Optional[dict] = {}
 
 
 class Response(BaseModel):

@@ -67,7 +67,7 @@ class Patata:
                 Iterable of Request objects containing the id, url and data
             callbacks: Optional[Iterable[Callable]] = None
                 Callables that will be executed for each response, they must expect receiving a
-                Response and return another Response
+                Response and must return another Response
         Return
         -----------
             responses : Generator[patata.Response, None, None]

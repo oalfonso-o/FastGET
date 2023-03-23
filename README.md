@@ -1,7 +1,7 @@
 # Patata
 
 <p align="center">
-    <em>Easy parallel and concurrent GET requests</em>
+    <em>Easy parallel and concurrent requests</em>
 </p>
 
 <p align="center">
@@ -20,11 +20,10 @@ The idea of this package is to wrap `multiprocessing` and `async` concurrency an
 
 It only supports GET and POST requests. More methods will be implemented in later versions.
 
-The input is an iterable and the output is a generator. As soon as the requests get answer they are yielded until all the requests of the input are done.
+The input is an iterable and the output is a generator. As soon as the requests get their response they are yielded until all the requests of the input are done.
 
-Each element of the iterable is a tuple with `id`, `url` and `data`.
-Each element yielded is a tuple with the same `id` and the json response. With the `id` you can
-later map the responses.
+Each element of the iterable is a patata.Request object with `id_`, `url` and `data`.
+Each element yielded is a patata.Response with the same `id_`, `status_code` and `data` which is the json response. With the `id_` you can map the responses to the input requests.
 
 This is useful for cases where you have a huge amount of requests to perform to an API and you
 need to do them as fast as possible.
@@ -47,11 +46,16 @@ pip install patata
 Use always context manager, for example for GET:
 
 ``` python
->>> from patata import Patata
+>>> from patata.models import Request
+>>> from collections import deque
+>>> 
+>>> def mygen():
+...     for i in range(10_000):
+...          yield Request(id_=i, url="http://localhost:12345/")
+... 
 >>> with Patata() as client:
-...     responses = client.http("get", [(1, "http://localhost:12345", {}), (2, "http://localhost:12345", {})])
-...     for response in responses:
-...         print(response)
+...     responses = client.http("get", mygen())
+...     _ = deque(responses)
 ... 
 patata              INFO      Start processing requests with Patata parameters:
 patata              INFO        method:             GET
@@ -59,42 +63,51 @@ patata              INFO        num_workers:        8
 patata              INFO        queue_max_size:     100000
 patata              INFO        input_chunk_size:   10000
 patata              INFO        pool_submit_size:   1000
-(2, {'message': 'Hello world!'})
-(1, {'message': 'Hello world!'})
 patata              INFO      All requests processed:
-patata              INFO        Total requests:     2
-patata              INFO        Total time (s):     0.10
-patata              INFO        Requests/s:         20.35
+patata              INFO        Total requests:     10000
+patata              INFO        Total time (s):     5.00
+patata              INFO        Requests/s:         1998.37
+>>> _.pop()
+Response(id_=9000, status_code=200, data={'message': 'Hello world!'})
 ```
 
-You can provide a generator to don't blow up the memory:
+In this example are providing a generator as input but you can provide any kind of iterable.
+
+You can also provide callbacks to process the responses in each process before being yielded, so you can add your own post-processing of the responses taking benefit of multiprocessing. Example:
 ``` python
 >>> from patata import Patata
+>>> from patata.models import Request
 >>> from collections import deque
 >>> 
+>>> def mycallback(response):
+...     response.id_ = 1337
+...     return response
+... 
 >>> def mygen():
-...     for i in range(100_000):
-...          yield (i, "http://localhost:12345", {"key": "value"})
+...     for i in range(10_000):
+...          yield Request(id_=i, url="http://localhost:12345/")
 ... 
 >>> with Patata() as client:
-...     responses = client.http("post", mygen())
+...     responses = client.http("get", mygen(), callbacks=[mycallback])
 ...     _ = deque(responses)
 ... 
 patata              INFO      Start processing requests with Patata parameters:
-patata              INFO        method:             POST
+patata              INFO        method:             GET
 patata              INFO        num_workers:        8
 patata              INFO        queue_max_size:     100000
 patata              INFO        input_chunk_size:   10000
 patata              INFO        pool_submit_size:   1000
 patata              INFO      All requests processed:
-patata              INFO        Total requests:     100000
-patata              INFO        Total time (s):     43.78
-patata              INFO        Requests/s:         2283.90
+patata              INFO        Total requests:     10000
+patata              INFO        Total time (s):     4.89
+patata              INFO        Requests/s:         2046.95
+>>> _.pop()
+Response(id_=1337, status_code=200, data={'message': 'Hello world!'})
 ```
 
 ## Parameters
 
-You can configure some parameters like the amount of workers or how the client chunks the input:
+You can configure some parameters:
 
 [patata.Patata](https://github.com/oalfonso-o/patata/blob/main/patata/client.py#L24) parameters:
 
@@ -132,6 +145,11 @@ Parameters:
     - type: Iterable[Tuple[int, str]]
     - required: True
     - description: Provide the tuples containing the ID of the request and the URL to be requested.
+- `callbacks`:
+    - type: Iterable[Tuple[int, str]]
+    - required: False
+    - default: []
+    - description: Callables that will be executed for each response, they must expect receiving a Response and must return another Response
 
 Response: Generator[Tuple[int, str], None, None]. For each input tuple an output tuple will be returned containing the same ID + the JSON of the response.
 
