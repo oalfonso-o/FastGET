@@ -29,7 +29,6 @@ VALID_METHODS = [
 
 
 class Patata:
-
     NUM_CPUS: Optional[int] = os.cpu_count() or 1
     QUEUE_MAX_SIZE: int = 100_000
     INPUT_CHUNK_SIZE: int = 10_000
@@ -110,7 +109,6 @@ class Patata:
         urls_chunks = self._chunker(requests, self.input_chunk_size)
 
         for urls_chunk in urls_chunks:
-
             if urls_in_queue < self.queue_max_size:
                 chunks = self._chunker(urls_chunk, self.pool_submit_size)
                 for chunk in chunks:
@@ -172,7 +170,6 @@ class Patata:
 
 
 class Requester:
-
     @classmethod
     def run(cls, method: str, urls: List[InputItem]) -> List[OutputItem]:
         if method.upper() not in VALID_METHODS:
@@ -183,7 +180,9 @@ class Requester:
         return responses
 
     @classmethod
-    async def _make_requests_async(cls, method: str, urls: List[InputItem]) -> List[OutputItem]:
+    async def _make_requests_async(
+        cls, method: str, urls: List[InputItem]
+    ) -> List[OutputItem]:
         async with aiohttp.ClientSession() as session:
             tasks = []
             for id_, url, data in urls:
@@ -198,7 +197,6 @@ class Requester:
     async def _make_request_async(
         session: aiohttp.ClientSession, method: str, id_: Any, url: str, data: dict
     ) -> OutputItem:
-
         session_method = getattr(session, method)
         headers = {"accept": "application/json"}
 
