@@ -14,10 +14,10 @@ logging.basicConfig(
     level=logging.INFO,
     format=("%(asctime)-25s" "%(name)-20s" "%(levelname)-10s" "%(message)s"),
 )
-logger = logging.getLogger("fastget")
+logger = logging.getLogger("fasthttp")
 
 
-class FastGET:
+class FastHTTP:
 
     NUM_CPUS: Optional[int] = os.cpu_count() or 1
     QUEUE_MAX_SIZE: int = 100_000
@@ -42,24 +42,23 @@ class FastGET:
         )
 
     def get(
-        self, ids_and_urls: Iterable[Tuple[int, str]]
+        self, ids_and_urls: Iterable[Tuple[int, str, dict]]
     ) -> Generator[Tuple[int, str], None, None]:
         """Uses multiprocessing and aiohttp to retrieve GET requests in parallel and concurrently
 
-        Expects a list of tuples, each tuple containing the ID of the request and the URL.
+        Expects a list of tuples, each tuple containing the ID of the request, the URL and the
+        data.
 
         Example:
-        [(0, "https://www.google.com"), (1, "https://www.youtube.com")]
+        [(0, "https://www.google.com", {}), (1, 'http://localhost:12345, {"key": "value"}')]
 
-        It only supports GET requests without parameters, only the URL so the query params should
-        be already URL encoded.
+        It only supports GET and POST methods. URL parameters should come already url encoded.
 
-        Yields tuples with the same format: ID + the JSON response, as soon as a response is
-        received.
+        Yields tuples of two items: ID + the JSON response, as soon as a response is received.
 
         Example:
-        >>> client = FastGET()
-        >>> responses = client.get([(0, "http://0.0.0.0:12345")])
+        >>> client = FastHTTP()
+        >>> responses = client.get([(0, "http://0.0.0.0:12345", {})])
         >>> next(responses)
         (0, {'message': 'Hello Single View API user!'})
         >>> client.close()
@@ -75,7 +74,7 @@ class FastGET:
         The best is to use it with context manager:
 
         Example:
-        >>> with FastGET() as client:
+        >>> with FastHTTP() as client:
         ...     responses = client.get([(0, "http://0.0.0.0:12345")])
         ...     next(responses)
         ...
@@ -87,7 +86,7 @@ class FastGET:
                 "This client is in use, the same client can't be used concurrently"
             )
 
-        logger.info("Start processing requests with FastGET parameters:")
+        logger.info("Start processing requests with FastHTTP parameters:")
         logger.info(f"  num_workers:        {self.num_workers}")
         logger.info(f"  queue_max_size:     {self.queue_max_size}")
         logger.info(f"  input_chunk_size:   {self.input_chunk_size}")

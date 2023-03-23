@@ -1,5 +1,5 @@
-from fastget import FastGET
+from fasthttp import FastHTTP
 
 
 def test_dummy():
-    assert FastGET()
+    assert FastHTTP()
