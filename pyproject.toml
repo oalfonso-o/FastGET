@@ -1,10 +1,11 @@
 [project]
 name = "patata"
-version = "1.0.0"
+version = "2.0.0"
 description = "Simple lightweight HTTP client to perform GET or POST requests in parallel with multiprocessing and in each process use aiohttp to do them concurrently and maximize the throughtput."
 requires-python = ">=3.8"
 dependencies = [
     "aiohttp>=3.8.4,<4",
+    "pydantic>=1.10.7,<2",
     'importlib-metadata; python_version<"3.9"',
 ]
 readme = "README.md"

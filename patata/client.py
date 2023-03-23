@@ -4,20 +4,19 @@ import itertools
 import logging
 import os
 import time
-from typing import List, Tuple, Generator, Optional, Iterable, Any
+from typing import List, Generator, Optional, Iterable
 
 # from collections.abc import Iterable  # only for >=3.9
 
 import aiohttp
+
+from .models import Request, Response
 
 logging.basicConfig(
     level=logging.INFO,
     format=("%(asctime)-25s" "%(name)-20s" "%(levelname)-10s" "%(message)s"),
 )
 logger = logging.getLogger("patata")
-
-InputItem = Tuple[Any, str, dict]
-OutputItem = Tuple[Any, int, dict]
 
 
 POST = "POST"
@@ -41,7 +40,7 @@ class Patata:
         input_chunk_size: int = 0,
         queue_max_size: int = 0,
     ):
-        self.responses: List[OutputItem] = []
+        self.responses: List[Response] = []
         self.total_processed_requests: int = 0
         self.num_workers = num_workers or self.NUM_CPUS
         self.queue_max_size = queue_max_size or self.QUEUE_MAX_SIZE
@@ -52,45 +51,46 @@ class Patata:
         )
 
     def http(
-        self, method: str, requests: Iterable[InputItem]
-    ) -> Generator[OutputItem, None, None]:
+        self, method: str, requests: Iterable[Request]
+    ) -> Generator[Response, None, None]:
         """Uses multiprocessing and aiohttp to retrieve GET or POST requests in parallel and
         concurrently
 
-        Expects a list of tuples, each tuple containing the ID of the request, the URL and the
-        data.
+        Expects:
+            - a method type, which has to be one of patata.client.VALID_METHODS.
+            - an Iterable of patata.models.Request objects. A Request object contains the `id` of
+            the request, the `url` and the `data`.
+
+        Example of requests:
+        [
+            Request(id_=0, url="https://www.google.com", data={}),
+            Request(id_=1, url="http://localhost:12345", data={"key": "value"}),
+        ]
+
+        It only supports GET and POST methods.
+
+        URL parameters should come already url encoded.
+
+        Yields patata.models.Response objects which have the Request.id_, the response status_code
+        and the json returned.
 
         Example:
-        [(0, "https://www.google.com", {}), (1, 'http://localhost:12345, {"key": "value"}')]
-
-        It only supports GET and POST methods. URL parameters should come already url encoded.
-
-        Yields tuples of two items: ID + the JSON response, as soon as a response is received.
-
-        Example:
-        >>> client = Patata()
-        >>> responses = client.get([(0, "http://0.0.0.0:12345", {})])
-        >>> next(responses)
-        (0, {'message': 'Hello Single View API user!'})
-        >>> client.close()
+        >>> from patata import Patata
+        >>> from patata.models import Request
+        >>> with Patata() as client:
+        ...     responses = client.http("get", [Request(id_=0, url="http://localhost:12345/", data={})])
+        ...     next(responses)
+        ...
+        Response(id_=0, status_code=200, data={'message': 'Hello world'})
 
         If you use it without context manager you have to call the .close() to close the pool of
         processes.
 
-        Is not thread safe, a single client must not be used in parallel or in another thread as
-        the responses are stored in the instance variable `responses` and are yielded from there.
-        Using the same client to perform two `get` operations in parallel will lead to mixing the
-        responses.
-
-        The best is to use it with context manager:
-
-        Example:
-        >>> with Patata() as client:
-        ...     responses = client.get([(0, "http://0.0.0.0:12345")])
-        ...     next(responses)
-        ...
-        (0, {'message': 'Hello Single View API user!'})
-        """
+        It is not thread safe, a single client must only be used in the main thread as the
+        responses are stored in the instance variable `responses` and are yielded from there.
+        Using the same client to perform two `patata.Patata.http` calls in parallel will lead to
+        mixing the responses.
+        """  # noqa E501
 
         if self.responses or self.total_processed_requests:
             raise Exception(
@@ -105,20 +105,20 @@ class Patata:
         logger.info(f"  pool_submit_size:   {self.pool_submit_size}")
 
         init_time = time.time()
-        urls_in_queue = 0
-        urls_chunks = self._chunker(requests, self.input_chunk_size)
+        requests_in_queue = 0
+        requests_chunks = self._chunker(requests, self.input_chunk_size)
 
-        for urls_chunk in urls_chunks:
-            if urls_in_queue < self.queue_max_size:
-                chunks = self._chunker(urls_chunk, self.pool_submit_size)
+        for requests_chunk in requests_chunks:
+            if requests_in_queue < self.queue_max_size:
+                chunks = self._chunker(requests_chunk, self.pool_submit_size)
                 for chunk in chunks:
-                    urls = list(chunk)
-                    future = self.executor.submit(Requester.run, method, urls)
+                    requests = self._validate_input(chunk)
+                    future = self.executor.submit(Requester.run, method, requests)
                     future.add_done_callback(self._future_done_callback)
-                    urls_in_queue += len(urls)
+                    requests_in_queue += len(requests)
 
             for _ in range(len(self.responses)):
-                urls_in_queue -= 1
+                requests_in_queue -= 1
                 self.total_processed_requests += 1
                 yield self.responses.pop()
 
@@ -130,9 +130,9 @@ class Patata:
                     f"Total processed requests: {self.total_processed_requests}..."
                 )
 
-        while urls_in_queue:
+        while requests_in_queue:
             if self.responses:
-                urls_in_queue -= 1
+                requests_in_queue -= 1
                 self.total_processed_requests += 1
                 yield self.responses.pop()
 
@@ -164,6 +164,16 @@ class Patata:
         for first in iterator:
             yield itertools.chain([first], itertools.islice(iterator, size - 1))
 
+    @staticmethod
+    def _validate_input(chunk) -> List[Request]:
+        requests = []
+        for request in chunk:
+            if isinstance(request, Request):
+                requests.append(request)
+            else:
+                raise ValueError(f"Input {request} must be of type Request")
+        return requests
+
     def _future_done_callback(self, future):
         results = future.result()
         self.responses.extend(results)
@@ -171,42 +181,47 @@ class Patata:
 
 class Requester:
     @classmethod
-    def run(cls, method: str, urls: List[InputItem]) -> List[OutputItem]:
+    def run(cls, method: str, requests: List[Request]) -> List[Response]:
         if method.upper() not in VALID_METHODS:
             raise Exception(
                 f"The method {method} is not valid. Valid methods: {VALID_METHODS}"
             )
-        responses = asyncio.run(cls._make_requests_async(method.lower(), urls))
+        responses = asyncio.run(cls._make_requests_async(method.lower(), requests))
         return responses
 
     @classmethod
     async def _make_requests_async(
-        cls, method: str, urls: List[InputItem]
-    ) -> List[OutputItem]:
+        cls, method: str, requests: List[Request]
+    ) -> List[Response]:
         async with aiohttp.ClientSession() as session:
             tasks = []
-            for id_, url, data in urls:
+            for request in requests:
                 task = asyncio.ensure_future(
-                    cls._make_request_async(session, method, id_, url, data)
+                    cls._make_request_async(session, method, request)
                 )
                 tasks.append(task)
-            results = await asyncio.gather(*tasks)
-        return results
+            responses = await asyncio.gather(*tasks)
+        return responses
 
     @staticmethod
     async def _make_request_async(
-        session: aiohttp.ClientSession, method: str, id_: Any, url: str, data: dict
-    ) -> OutputItem:
+        session: aiohttp.ClientSession, method: str, request: Request
+    ) -> Response:
         session_method = getattr(session, method)
         headers = {"accept": "application/json"}
 
-        if method.upper() == POST and data:
+        if method.upper() == POST and request.data:
             headers["Content-Type"] = "application/json"
 
-        async with session_method(url, json=data, headers=headers) as response:
+        async with session_method(
+            request.url, json=request.data, headers=headers
+        ) as response:
+            response_json = {}
             try:
                 status_code = response.status
                 response_json = await response.json()
             except Exception as e:
                 logger.exception(e)
-            return (id_, status_code, response_json)
+            return Response(
+                id_=request.id_, status_code=status_code, data=response_json
+            )
