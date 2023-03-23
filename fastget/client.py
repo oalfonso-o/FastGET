@@ -37,7 +37,9 @@ class FastGET:
         self.queue_max_size = queue_max_size or self.QUEUE_MAX_SIZE
         self.input_chunk_size = input_chunk_size or self.INPUT_CHUNK_SIZE
         self.pool_submit_size = pool_submit_size or self.POOL_SUBMIT_SIZE
-        self.executor: Optional[concurrent.futures.ProcessPoolExecutor] = None
+        self.executor = concurrent.futures.ProcessPoolExecutor(
+            max_workers=self.num_workers
+        )
 
     def get(
         self, ids_and_urls: Iterable[Tuple[int, str]]
@@ -60,16 +62,17 @@ class FastGET:
         >>> responses = client.get([(0, "http://0.0.0.0:12345")])
         >>> next(responses)
         (0, {'message': 'Hello Single View API user!'})
+        >>> client.close()
+
+        If you use it without context manager you have to call the .close() to close the pool of
+        processes.
 
         Is not thread safe, a single client must not be used in parallel or in another thread as
         the responses are stored in the instance variable `responses` and are yielded from there.
         Using the same client to perform two `get` operations in parallel will lead to mixing the
         responses.
 
-        There's no need for it but can be used with context manager to avoid reusing it, but the
-        manager is dummy, it just allows you to open it with the with statement but the proper
-        context is managed by concurrent.futures.ProcessPoolExecutor and aiohttp.ClientSession when
-        used.
+        The best is to use it with context manager:
 
         Example:
         >>> with FastGET() as client:
@@ -83,8 +86,6 @@ class FastGET:
             raise Exception(
                 "This client is in use, the same client can't be used concurrently"
             )
-        if not self.executor:
-            raise Exception("Please start the client with context manager")
 
         logger.info("Start processing requests with FastGET parameters:")
         logger.info(f"  num_workers:        {self.num_workers}")
@@ -138,14 +139,14 @@ class FastGET:
         self.total_processed_requests = 0
 
     def __enter__(self):
-        self.executor = concurrent.futures.ProcessPoolExecutor(
-            max_workers=self.num_workers
-        )
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        self.executor.shutdown(wait=True)
+        self.close()
         return False
+
+    def close(self):
+        self.executor.shutdown(wait=True)
 
     @staticmethod
     def _chunker(iterable, size: int):
