@@ -39,6 +39,7 @@ class Patata:
         queue_max_size: int = 0,
         input_chunk_size: int = 0,
         pool_submit_size: int = 0,
+        verbose: bool = True,
     ):
         self.responses: List[Response] = []
         self.total_processed_requests: int = 0
@@ -46,6 +47,7 @@ class Patata:
         self.queue_max_size = queue_max_size or self.QUEUE_MAX_SIZE
         self.input_chunk_size = input_chunk_size or self.INPUT_CHUNK_SIZE
         self.pool_submit_size = pool_submit_size or self.POOL_SUBMIT_SIZE
+        self.verbose = verbose
         self.executor: Optional[concurrent.futures.ProcessPoolExecutor] = None
         if self.workers != 1:
             self.executor = concurrent.futures.ProcessPoolExecutor(
@@ -108,13 +110,14 @@ class Patata:
                 "This client is in use, the same client can't be used concurrently"
             )
 
-        logger.info("Start processing requests with Patata parameters:")
-        logger.info(f"  method:             {method.upper()}")
-        logger.info(f"  workers:            {self.workers}")
-        logger.info(f"  multiprocessing:    {self.workers != 1}")
-        logger.info(f"  queue_max_size:     {self.queue_max_size}")
-        logger.info(f"  input_chunk_size:   {self.input_chunk_size}")
-        logger.info(f"  pool_submit_size:   {self.pool_submit_size}")
+        if self.verbose:
+            logger.info("Start processing requests with Patata parameters:")
+            logger.info(f"  method:             {method.upper()}")
+            logger.info(f"  workers:            {self.workers}")
+            logger.info(f"  multiprocessing:    {self.workers != 1}")
+            logger.info(f"  queue_max_size:     {self.queue_max_size}")
+            logger.info(f"  input_chunk_size:   {self.input_chunk_size}")
+            logger.info(f"  pool_submit_size:   {self.pool_submit_size}")
 
         init_time = time.time()
         requests_in_queue = 0
@@ -143,7 +146,8 @@ class Patata:
                 yield self.responses.pop()
 
             if (
-                self.total_processed_requests % Patata.INPUT_CHUNK_SIZE == 0
+                self.verbose
+                and self.total_processed_requests % Patata.INPUT_CHUNK_SIZE == 0
                 and self.total_processed_requests
             ):
                 logger.info(
@@ -159,13 +163,15 @@ class Patata:
         if self.responses:
             raise Exception("We should have returned everything!")
 
-        total_time = time.time() - init_time
-        logger.info("All requests processed:")
-        logger.info(f"  Total requests:     {self.total_processed_requests}")
-        logger.info(f"  Total time (s):     {total_time:.2f}")
-        logger.info(
-            f"  Requests/s:         {(self.total_processed_requests/total_time):.2f}"
-        )
+        if self.verbose:
+            total_time = time.time() - init_time
+            logger.info("All requests processed:")
+            logger.info(f"  Total requests:     {self.total_processed_requests}")
+            logger.info(f"  Total time (s):     {total_time:.2f}")
+            logger.info(
+                f"  Requests/s:         {(self.total_processed_requests/total_time):.2f}"
+            )
+
         self.total_processed_requests = 0
 
     def __enter__(self):
@@ -203,14 +209,20 @@ class Patata:
 class Requester:
     @classmethod
     def run(
-        cls, method: str, requests: List[Request], callbacks: Iterable[Callable]
+        cls,
+        method: str,
+        requests: List[Request],
+        callbacks: Iterable[Callable],
+        verbose: bool = True,
     ) -> List[Response]:
         if method.upper() not in VALID_METHODS:
             raise Exception(
                 f"The method {method} is not valid. Valid methods: {VALID_METHODS}"
             )
 
-        responses = asyncio.run(cls._make_requests_async(method.lower(), requests))
+        responses = asyncio.run(
+            cls._make_requests_async(method.lower(), requests, verbose)
+        )
 
         for response in responses:
             for callback in callbacks:
@@ -220,13 +232,13 @@ class Requester:
 
     @classmethod
     async def _make_requests_async(
-        cls, method: str, requests: List[Request]
+        cls, method: str, requests: List[Request], verbose: bool = True
     ) -> List[Response]:
         async with aiohttp.ClientSession() as session:
             tasks = []
             for request in requests:
                 task = asyncio.ensure_future(
-                    cls._make_request_async(session, method, request)
+                    cls._make_request_async(session, method, request, verbose)
                 )
                 tasks.append(task)
             responses = await asyncio.gather(*tasks)
@@ -234,7 +246,10 @@ class Requester:
 
     @staticmethod
     async def _make_request_async(
-        session: aiohttp.ClientSession, method: str, request: Request
+        session: aiohttp.ClientSession,
+        method: str,
+        request: Request,
+        verbose: bool = True,
     ) -> Response:
         session_method = getattr(session, method)
         headers = {"accept": "application/json"}
@@ -250,7 +265,8 @@ class Requester:
                 status_code = response.status
                 response_json = await response.json()
             except Exception as e:
-                logger.exception(e)
+                if verbose:
+                    logger.exception(e)
             return Response(
                 id_=request.id_, status_code=status_code, data=response_json
             )
