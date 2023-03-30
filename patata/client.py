@@ -11,6 +11,7 @@ from typing import List, Generator, Optional, Iterable, Callable
 import aiohttp
 
 from .models import Request, Response
+from .exceptions import ClientAlreadyInUseError, InternalPatataError, InvalidMethodError
 
 logging.basicConfig(
     level=logging.INFO,
@@ -106,7 +107,7 @@ class Patata:
         """  # noqa E501
 
         if self.responses or self.total_processed_requests:
-            raise Exception(
+            raise ClientAlreadyInUseError(
                 "This client is in use, the same client can't be used concurrently"
             )
 
@@ -161,7 +162,7 @@ class Patata:
                 yield self.responses.pop()
 
         if self.responses:
-            raise Exception("We should have returned everything!")
+            raise InternalPatataError("We should have returned everything!")  # shouldn't happen
 
         if self.verbose:
             total_time = time.time() - init_time
@@ -216,7 +217,7 @@ class Requester:
         verbose: bool = True,
     ) -> List[Response]:
         if method.upper() not in VALID_METHODS:
-            raise Exception(
+            raise InvalidMethodError(
                 f"The method {method} is not valid. Valid methods: {VALID_METHODS}"
             )
 
