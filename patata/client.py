@@ -9,6 +9,7 @@ from typing import List, Generator, Optional, Iterable, Callable
 # from collections.abc import Iterable  # only for >=3.9
 
 import aiohttp
+from aiohttp_retry import RetryClient, ExponentialRetry
 
 from .models import Request, Response
 from .exceptions import ClientAlreadyInUseError, InternalPatataError, InvalidMethodError
@@ -19,13 +20,13 @@ logging.basicConfig(
 )
 logger = logging.getLogger("patata")
 
-
 POST = "POST"
 GET = "GET"
 VALID_METHODS = [
     GET,
     POST,
 ]
+RETRY_STATUSES = {status for status in range(300, 600) if status not in [418, 429]}
 
 
 class Patata:
@@ -60,6 +61,7 @@ class Patata:
         method: str,
         requests: Iterable[Request],
         callbacks: Iterable[Callable] = [],
+        retries: int = 1,
     ) -> Generator[Response, None, None]:
         """Uses multiprocessing and aiohttp to retrieve GET or POST requests in parallel and
         concurrently
@@ -73,6 +75,9 @@ class Patata:
             callbacks: Optional[Iterable[Callable]] = None
                 Callables that will be executed for each response, they must expect receiving a
                 Response and must return another Response
+            retries: Optional[int]
+                Total amount of requests to perform if the response is an error. Default is 1 which
+                means doing the request only once, so no retries.
         Return
         -----------
             responses : Generator[patata.Response, None, None]
@@ -105,7 +110,6 @@ class Patata:
         Using the same client to perform two `patata.Patata.http` calls in parallel will lead to
         mixing the responses.
         """  # noqa E501
-
         if self.responses or self.total_processed_requests:
             raise ClientAlreadyInUseError(
                 "This client is in use, the same client can't be used concurrently"
@@ -131,12 +135,23 @@ class Patata:
                     requests = self._validate_input(chunk)
                     if self.executor:
                         future = self.executor.submit(
-                            Requester.run, method, requests, callbacks
+                            Requester.run,
+                            method=method,
+                            requests=requests,
+                            callbacks=callbacks,
+                            verbose=self.verbose,
+                            retries=retries,
                         )
                         future.add_done_callback(self._future_done_callback)
                     else:  # run in the main thread
                         self.responses.extend(
-                            Requester.run(method, requests, callbacks)
+                            Requester.run(
+                                method=method,
+                                requests=requests,
+                                callbacks=callbacks,
+                                verbose=self.verbose,
+                                retries=retries,
+                            )
                         )
 
                     requests_in_queue += len(requests)
@@ -162,7 +177,9 @@ class Patata:
                 yield self.responses.pop()
 
         if self.responses:
-            raise InternalPatataError("We should have returned everything!")  # shouldn't happen
+            raise InternalPatataError(
+                "We should have returned everything!"
+            )  # shouldn't happen
 
         if self.verbose:
             total_time = time.time() - init_time
@@ -215,6 +232,7 @@ class Requester:
         requests: List[Request],
         callbacks: Iterable[Callable],
         verbose: bool = True,
+        retries: int = 1,
     ) -> List[Response]:
         if method.upper() not in VALID_METHODS:
             raise InvalidMethodError(
@@ -222,7 +240,7 @@ class Requester:
             )
 
         responses = asyncio.run(
-            cls._make_requests_async(method.lower(), requests, verbose)
+            cls._make_requests_async(method.lower(), requests, verbose, retries)
         )
 
         for response in responses:
@@ -233,13 +251,19 @@ class Requester:
 
     @classmethod
     async def _make_requests_async(
-        cls, method: str, requests: List[Request], verbose: bool = True
+        cls,
+        method: str,
+        requests: List[Request],
+        verbose: bool = True,
+        retries: int = 1,
     ) -> List[Response]:
         async with aiohttp.ClientSession() as session:
+            retry_options = ExponentialRetry(attempts=retries)
+            retry_client = RetryClient(session, retry_options=retry_options)
             tasks = []
             for request in requests:
                 task = asyncio.ensure_future(
-                    cls._make_request_async(session, method, request, verbose)
+                    cls._make_request_async(retry_client, method, request, verbose)
                 )
                 tasks.append(task)
             responses = await asyncio.gather(*tasks)
@@ -247,19 +271,21 @@ class Requester:
 
     @staticmethod
     async def _make_request_async(
-        session: aiohttp.ClientSession,
+        retry_client: RetryClient,
         method: str,
         request: Request,
         verbose: bool = True,
     ) -> Response:
-        session_method = getattr(session, method)
+        client_method = getattr(retry_client, method)
         headers = {"accept": "application/json"}
 
         if method.upper() == POST and request.data:
             headers["Content-Type"] = "application/json"
 
-        async with session_method(
-            request.url, json=request.data, headers=headers
+        async with client_method(
+            request.url,
+            json=request.data,
+            headers=headers,
         ) as response:
             response_json = {}
             try:

@@ -107,6 +107,33 @@ patata              INFO        Requests/s:         2046.95
 Response(id_=1337, status_code=200, data={'message': 'Hello world!'})
 ```
 
+For doing a POST:
+
+Let's imagine we have this FastAPI endpoint:
+``` python
+@app.post("/")
+async def root(data: dict):
+    return data
+```
+
+We can consume the POST endpoint like this:
+``` python
+>>> from patata import Patata
+>>> from patata.models import Request
+>>> 
+>>> requests = [
+...     Request(id_=1, url="http://localhost:12345/", data={"hello": "POST 1"}),
+...     Request(id_=2, url="http://localhost:12345/", data={"hello": "POST 2"}),
+... ]
+>>> with Patata(verbose=False) as client:
+...     responses = client.http("post", requests)
+...     for response in responses:
+...         print(response)
+... 
+id_=2 status_code=200 data={'hello': 'POST 2'}
+id_=1 status_code=200 data={'hello': 'POST 1'}
+```
+
 ## Parameters
 
 You can configure some parameters:
@@ -133,6 +160,12 @@ You can configure some parameters:
     - required: False
     - default: 1.000
     - description: Each chunk of `input_chunk_size` will also be chunked to minor chunks of this size before being submited to the pool. The workers will be consuming chunks of this size and each of these chunks will be requested in an event loop.
+- `verbose`:
+    - type: bool
+    - required: False
+    - default: True
+    - description: Logs information about the execution like the configuration, the progress, the exceptions, etc. You can silence it if it's annoying.
+
 
 
 [patata.Patata.http](https://github.com/oalfonso-o/patata/blob/main/patata/client.py#L42)
@@ -152,12 +185,16 @@ Parameters:
     - required: False
     - default: []
     - description: Callables that will be executed for each response, they must expect receiving a Response and must return another Response
+- `retries`:
+    - type: Optional[int]
+    - required: False
+    - default: 1
+    - description: Total amount of requests to perform if the response is an error. Default is 1 which means doing the request only once, so no retries.
 
 Response: Generator[Tuple[int, str], None, None]. For each input tuple an output tuple will be returned containing the same ID + the JSON of the response.
 
 
 TODO:
 - tests
-- define proper exceptions
 - add flag to specify how many requests can fail, this will need to specify also which codes are "ok" or which are "not ok" do decide when to increment this count and decide to stop
 - include the missing methods like PUT, DELETE, etc
