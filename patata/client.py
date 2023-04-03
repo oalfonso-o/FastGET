@@ -123,6 +123,7 @@ class Patata:
             logger.info(f"  queue_max_size:     {self.queue_max_size}")
             logger.info(f"  input_chunk_size:   {self.input_chunk_size}")
             logger.info(f"  pool_submit_size:   {self.pool_submit_size}")
+            logger.info(f"  verbose:            {self.verbose}")
 
         init_time = time.time()
         requests_in_queue = 0
@@ -161,19 +162,13 @@ class Patata:
                 self.total_processed_requests += 1
                 yield self.responses.pop()
 
-            if (
-                self.verbose
-                and self.total_processed_requests % self.input_chunk_size == 0
-                and self.total_processed_requests
-            ):
-                logger.info(
-                    f"Total processed requests: {self.total_processed_requests}..."
-                )
+            self._log_process()
 
         while requests_in_queue:
             if self.responses:
                 requests_in_queue -= 1
                 self.total_processed_requests += 1
+                self._log_process()
                 yield self.responses.pop()
 
         if self.responses:
@@ -222,6 +217,16 @@ class Patata:
     def _future_done_callback(self, future):
         results = future.result()
         self.responses.extend(results)
+
+    def _log_process(self):
+        if (
+            self.verbose
+            and self.total_processed_requests % self.input_chunk_size == 0
+            and self.total_processed_requests
+        ):
+            logger.info(
+                f"Total processed requests: {self.total_processed_requests}..."
+            )
 
 
 class Requester:
