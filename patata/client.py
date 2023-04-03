@@ -163,7 +163,7 @@ class Patata:
 
             if (
                 self.verbose
-                and self.total_processed_requests % Patata.INPUT_CHUNK_SIZE == 0
+                and self.total_processed_requests % self.input_chunk_size == 0
                 and self.total_processed_requests
             ):
                 logger.info(
