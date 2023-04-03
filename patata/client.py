@@ -224,9 +224,7 @@ class Patata:
             and self.total_processed_requests % self.input_chunk_size == 0
             and self.total_processed_requests
         ):
-            logger.info(
-                f"Total processed requests: {self.total_processed_requests}..."
-            )
+            logger.info(f"Total processed requests: {self.total_processed_requests}...")
 
 
 class Requester:
