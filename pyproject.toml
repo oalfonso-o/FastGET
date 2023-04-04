@@ -1,6 +1,6 @@
 [project]
 name = "patata"
-version = "3.3.1"
+version = "3.4.0"
 description = "Simple lightweight HTTP client to perform GET or POST requests in parallel with multiprocessing and in each process use aiohttp to do them concurrently and maximize the throughtput."
 requires-python = ">=3.8"
 dependencies = [
