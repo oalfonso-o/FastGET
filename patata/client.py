@@ -4,6 +4,7 @@ import itertools
 import logging
 import os
 import time
+import traceback
 from typing import List, Generator, Optional, Iterable, Callable
 
 # from collections.abc import Iterable  # only for >=3.9
@@ -75,7 +76,7 @@ class Patata:
             callbacks: Optional[Iterable[Callable]] = None
                 Callables that will be executed for each response, they must expect receiving a
                 Response and must return another Response
-            retries: Optional[int]
+            retries: Optional[int] = 1
                 Total amount of requests to perform if the response is an error. Default is 1 which
                 means doing the request only once, so no retries.
         Return
@@ -124,6 +125,7 @@ class Patata:
             logger.info(f"  input_chunk_size:   {self.input_chunk_size}")
             logger.info(f"  pool_submit_size:   {self.pool_submit_size}")
             logger.info(f"  verbose:            {self.verbose}")
+            logger.info(f"  retries:            {retries}")
 
         init_time = time.time()
         requests_in_queue = 0
@@ -285,18 +287,27 @@ class Requester:
         if method.upper() == POST and request.data:
             headers["Content-Type"] = "application/json"
 
-        async with client_method(
-            request.url,
-            json=request.data,
-            headers=headers,
-        ) as response:
-            response_json = {}
-            try:
-                status_code = response.status
-                response_json = await response.json()
-            except Exception as e:
-                if verbose:
-                    logger.exception(e)
-            return Response(
-                id_=request.id_, status_code=status_code, data=response_json
-            )
+        try:
+            async with client_method(
+                request.url,
+                json=request.data,
+                headers=headers,
+            ) as response:
+                response_json = {}
+                try:
+                    status_code = response.status
+                    response_json = await response.json()
+                except Exception:
+                    response.raise_for_status()
+                return Response(
+                    id_=request.id_, status_code=status_code, data=response_json
+                )
+        except Exception as e:  # TODO: handle all possible exceptions and return the proper code
+            if verbose:
+                logger.exception(e)
+            error_data = {
+                "exception_detail": str(e),
+                "exception_traceback": traceback.format_exc(),
+                "exception_class": str(e.__class__),
+            }
+            return Response(id_=request.id_, status_code=500, data=error_data)
