@@ -302,7 +302,9 @@ class Requester:
                 return Response(
                     id_=request.id_, status_code=status_code, data=response_json
                 )
-        except Exception as e:  # TODO: handle all possible exceptions and return the proper code
+        except (
+            Exception
+        ) as e:  # TODO: handle all possible exceptions and return the proper code
             if verbose:
                 logger.exception(e)
             error_data = {
