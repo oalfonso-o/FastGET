@@ -37,10 +37,10 @@ jobs:
           pip install tox
       - name: run tox test py${{ matrix.python-version }}
         run: |
-          tox -e py${{ matrix.python-version }}
+          tox -e py${{ matrix.python-version }} --recreate
       - name: run tox codestyle
         run: |
-          tox -e codestyle
+          tox -e codestyle --recreate
       - name: run tox type
         run: |
-          tox -e type
+          tox -e type --recreate
