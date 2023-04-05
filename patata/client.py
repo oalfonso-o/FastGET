@@ -70,7 +70,9 @@ class Patata:
                 max_workers=self.workers
             )
         if self.verbose_level not in VERBOSE_LEVELS:
-            raise InvalidVerboseLevelError(f"Verbose level must be one of: {VERBOSE_LEVELS}")
+            raise InvalidVerboseLevelError(
+                f"Verbose level must be one of: {VERBOSE_LEVELS}"
+            )
 
     def http(
         self,
@@ -283,7 +285,9 @@ class Requester:
             tasks = []
             for request in requests:
                 task = asyncio.ensure_future(
-                    cls._make_request_async(retry_client, method, request, verbose_level)
+                    cls._make_request_async(
+                        retry_client, method, request, verbose_level
+                    )
                 )
                 tasks.append(task)
             responses = await asyncio.gather(*tasks)
