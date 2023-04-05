@@ -13,7 +13,12 @@ import aiohttp
 from aiohttp_retry import RetryClient, ExponentialRetry
 
 from .models import Request, Response
-from .exceptions import ClientAlreadyInUseError, InternalPatataError, InvalidMethodError
+from .exceptions import (
+    ClientAlreadyInUseError,
+    InternalPatataError,
+    InvalidMethodError,
+    InvalidVerboseLevelError,
+)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -28,6 +33,14 @@ VALID_METHODS = [
     POST,
 ]
 RETRY_STATUSES = {status for status in range(300, 600) if status not in [418, 429]}
+VERBOSE_LEVEL_MUTE = 0
+VERBOSE_LEVEL_INFO = 1
+VERBOSE_LEVEL_DEBUG = 2
+VERBOSE_LEVELS = [
+    VERBOSE_LEVEL_MUTE,
+    VERBOSE_LEVEL_INFO,
+    VERBOSE_LEVEL_DEBUG,
+]
 
 
 class Patata:
@@ -42,7 +55,7 @@ class Patata:
         queue_max_size: int = 0,
         input_chunk_size: int = 0,
         pool_submit_size: int = 0,
-        verbose: bool = True,
+        verbose_level: int = VERBOSE_LEVEL_INFO,
     ):
         self.responses: List[Response] = []
         self.total_processed_requests: int = 0
@@ -50,12 +63,14 @@ class Patata:
         self.queue_max_size = queue_max_size or self.QUEUE_MAX_SIZE
         self.input_chunk_size = input_chunk_size or self.INPUT_CHUNK_SIZE
         self.pool_submit_size = pool_submit_size or self.POOL_SUBMIT_SIZE
-        self.verbose = verbose
+        self.verbose_level = verbose_level
         self.executor: Optional[concurrent.futures.ProcessPoolExecutor] = None
         if self.workers != 1:
             self.executor = concurrent.futures.ProcessPoolExecutor(
                 max_workers=self.workers
             )
+        if self.verbose_level not in VERBOSE_LEVELS:
+            raise InvalidVerboseLevelError(f"Verbose level must be one of: {VERBOSE_LEVELS}")
 
     def http(
         self,
@@ -116,7 +131,7 @@ class Patata:
                 "This client is in use, the same client can't be used concurrently"
             )
 
-        if self.verbose:
+        if self.verbose_level:
             logger.info("Start processing requests with Patata parameters:")
             logger.info(f"  method:             {method.upper()}")
             logger.info(f"  workers:            {self.workers}")
@@ -124,7 +139,7 @@ class Patata:
             logger.info(f"  queue_max_size:     {self.queue_max_size}")
             logger.info(f"  input_chunk_size:   {self.input_chunk_size}")
             logger.info(f"  pool_submit_size:   {self.pool_submit_size}")
-            logger.info(f"  verbose:            {self.verbose}")
+            logger.info(f"  verbose_level:      {self.verbose_level}")
             logger.info(f"  retries:            {retries}")
 
         init_time = time.time()
@@ -142,7 +157,7 @@ class Patata:
                             method=method,
                             requests=requests,
                             callbacks=callbacks,
-                            verbose=self.verbose,
+                            verbose_level=self.verbose_level,
                             retries=retries,
                         )
                         future.add_done_callback(self._future_done_callback)
@@ -152,7 +167,7 @@ class Patata:
                                 method=method,
                                 requests=requests,
                                 callbacks=callbacks,
-                                verbose=self.verbose,
+                                verbose_level=self.verbose_level,
                                 retries=retries,
                             )
                         )
@@ -178,7 +193,7 @@ class Patata:
                 "We should have returned everything!"
             )  # shouldn't happen
 
-        if self.verbose:
+        if self.verbose_level > VERBOSE_LEVEL_MUTE:
             total_time = time.time() - init_time
             logger.info("All requests processed:")
             logger.info(f"  Total requests:     {self.total_processed_requests}")
@@ -222,7 +237,7 @@ class Patata:
 
     def _log_process(self):
         if (
-            self.verbose
+            self.verbose_level > VERBOSE_LEVEL_MUTE
             and self.total_processed_requests % self.input_chunk_size == 0
             and self.total_processed_requests
         ):
@@ -236,7 +251,7 @@ class Requester:
         method: str,
         requests: List[Request],
         callbacks: Iterable[Callable],
-        verbose: bool = True,
+        verbose_level: int = VERBOSE_LEVEL_INFO,
         retries: int = 1,
     ) -> List[Response]:
         if method.upper() not in VALID_METHODS:
@@ -245,7 +260,7 @@ class Requester:
             )
 
         responses = asyncio.run(
-            cls._make_requests_async(method.lower(), requests, verbose, retries)
+            cls._make_requests_async(method.lower(), requests, verbose_level, retries)
         )
 
         for response in responses:
@@ -259,7 +274,7 @@ class Requester:
         cls,
         method: str,
         requests: List[Request],
-        verbose: bool = True,
+        verbose_level: int = VERBOSE_LEVEL_INFO,
         retries: int = 1,
     ) -> List[Response]:
         async with aiohttp.ClientSession() as session:
@@ -268,7 +283,7 @@ class Requester:
             tasks = []
             for request in requests:
                 task = asyncio.ensure_future(
-                    cls._make_request_async(retry_client, method, request, verbose)
+                    cls._make_request_async(retry_client, method, request, verbose_level)
                 )
                 tasks.append(task)
             responses = await asyncio.gather(*tasks)
@@ -279,7 +294,7 @@ class Requester:
         retry_client: RetryClient,
         method: str,
         request: Request,
-        verbose: bool = True,
+        verbose_level: int = VERBOSE_LEVEL_INFO,
     ) -> Response:
         client_method = getattr(retry_client, method)
         headers = {"accept": "application/json"}
@@ -305,7 +320,7 @@ class Requester:
         except (
             Exception
         ) as e:  # TODO: handle all possible exceptions and return the proper code
-            if verbose:
+            if verbose_level > VERBOSE_LEVEL_INFO:
                 logger.exception(e)
             error_data = {
                 "exception_detail": str(e),

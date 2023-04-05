@@ -160,11 +160,14 @@ You can configure some parameters:
     - required: False
     - default: 1.000
     - description: Each chunk of `input_chunk_size` will also be chunked to minor chunks of this size before being submited to the pool. The workers will be consuming chunks of this size and each of these chunks will be requested in an event loop.
-- `verbose`:
-    - type: bool
+- `verbose_level`:
+    - type: int
     - required: False
-    - default: True
-    - description: Logs information about the execution like the configuration, the progress, the exceptions, etc. You can silence it if it's annoying.
+    - default: 1
+    - description: Configure the level of logging. Possible values:
+        - 0: "mute" means not a single line of log will appear
+        - 1: "info" means that only the start params + num of processed lines + end summary will be logged
+        - 2: "debug" means that all exceptions will be logged, this includes error responses from the remote server
 
 
 

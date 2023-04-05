@@ -12,3 +12,7 @@ class InternalPatataError(PatataError):
 
 class InvalidMethodError(PatataError):
     pass
+
+
+class InvalidVerboseLevelError(PatataError):
+    pass
