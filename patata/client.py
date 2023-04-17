@@ -267,8 +267,14 @@ class Requester:
 
         for response in responses:
             for callback in callbacks:
-                response = callback(response)
-
+                try:
+                    response = callback(response)
+                except Exception as e:
+                    response.status_code = 500
+                    response.data = e
+                    if verbose_level > VERBOSE_LEVEL_INFO:
+                        logger.exception(e)
+                    break  # if a callback fails, don't process the next ones, keep the exception
         return responses
 
     @classmethod
