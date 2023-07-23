@@ -159,7 +159,7 @@ You can configure some parameters:
     - type: int
     - required: False
     - default: 1.000
-    - description: Each chunk of `input_chunk_size` will also be chunked to minor chunks of this size before being submited to the pool. The workers will be consuming chunks of this size and each of these chunks will be requested in an event loop.
+    - description: Each chunk of `input_chunk_size` will also be chunked to minor chunks of this size before being submitted to the pool. The workers will be consuming chunks of this size and each of these chunks will be requested in an event loop.
 - `verbose_level`:
     - type: int
     - required: False
