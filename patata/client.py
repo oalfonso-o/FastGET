@@ -7,9 +7,8 @@ import time
 import traceback
 from typing import List, Generator, Optional, Iterable, Callable
 
-# from collections.abc import Iterable  # only for >=3.9
-
 import aiohttp
+from aiohttp.client import ClientTimeout
 from aiohttp_retry import RetryClient, ExponentialRetry
 
 from .models import Request, Response
@@ -41,6 +40,7 @@ VERBOSE_LEVELS = [
     VERBOSE_LEVEL_INFO,
     VERBOSE_LEVEL_DEBUG,
 ]
+DEFAULT_TIMEOUT = 60 * 5  # 5 minutes, the aiohttp default
 
 
 class Patata:
@@ -80,6 +80,7 @@ class Patata:
         requests: Iterable[Request],
         callbacks: Iterable[Callable] = [],
         retries: int = 1,
+        timeout: float = DEFAULT_TIMEOUT,
     ) -> Generator[Response, None, None]:
         """Uses multiprocessing and aiohttp to retrieve GET or POST requests in parallel and
         concurrently
@@ -143,6 +144,7 @@ class Patata:
             logger.info(f"  pool_submit_size:   {self.pool_submit_size}")
             logger.info(f"  verbose_level:      {self.verbose_level}")
             logger.info(f"  retries:            {retries}")
+            logger.info(f"  timeout:            {timeout}")
 
         init_time = time.time()
         requests_in_queue = 0
@@ -161,6 +163,7 @@ class Patata:
                             callbacks=callbacks,
                             verbose_level=self.verbose_level,
                             retries=retries,
+                            timeout=retries,
                         )
                         future.add_done_callback(self._future_done_callback)
                     else:  # run in the main thread
@@ -171,6 +174,7 @@ class Patata:
                                 callbacks=callbacks,
                                 verbose_level=self.verbose_level,
                                 retries=retries,
+                                timeout=timeout,
                             )
                         )
 
@@ -255,6 +259,7 @@ class Requester:
         callbacks: Iterable[Callable],
         verbose_level: int = VERBOSE_LEVEL_INFO,
         retries: int = 1,
+        timeout: float = DEFAULT_TIMEOUT,
     ) -> List[Response]:
         if method.upper() not in VALID_METHODS:
             raise InvalidMethodError(
@@ -262,7 +267,9 @@ class Requester:
             )
 
         responses = asyncio.run(
-            cls._make_requests_async(method.lower(), requests, verbose_level, retries)
+            cls._make_requests_async(
+                method.lower(), requests, verbose_level, retries, timeout
+            )
         )
 
         for response in responses:
@@ -284,8 +291,11 @@ class Requester:
         requests: List[Request],
         verbose_level: int = VERBOSE_LEVEL_INFO,
         retries: int = 1,
+        timeout: float = DEFAULT_TIMEOUT,
     ) -> List[Response]:
-        async with aiohttp.ClientSession() as session:
+        async with aiohttp.ClientSession(
+            timeout=ClientTimeout(total=timeout)
+        ) as session:
             retry_options = ExponentialRetry(attempts=retries)
             retry_client = RetryClient(session, retry_options=retry_options)
             tasks = []
